@@ -3,7 +3,7 @@
 namespace Bpez\TwitterTweets;
 
 use Made\Services\freebird\Client;
-use \DateTime;
+use DateTime;
 
 // To get access tokens go here:
 // https://dev.twitter.com/apps/new 
