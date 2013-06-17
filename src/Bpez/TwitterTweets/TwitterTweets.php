@@ -1,12 +1,15 @@
-<?php namespace Bpez\TwitterTweets;
+<?php 
+
+namespace Bpez\TwitterTweets;
 
 use Made\Services\freebird\Client;
+use \DateTime;
 
 // To get access tokens go here:
 // https://dev.twitter.com/apps/new 
 
   // Define the main class
-  class TwitterTweets {
+class TwitterTweets {
     // The max number of tweets
     private $count = 1;
     // Trim the user informations from the data
@@ -93,7 +96,6 @@ use Made\Services\freebird\Client;
         $tweets = $this->get_data();
       }else{
         // We can update the cache 
-        echo "bryan2";
         $tweets = $this->fetch_url($this->user); 
         if($tweets == false){
           // We check here if the the fetch return false, because this case mean that 
@@ -106,5 +108,5 @@ use Made\Services\freebird\Client;
       }
       return $tweets;
     }
-  }
+}
 ?>
