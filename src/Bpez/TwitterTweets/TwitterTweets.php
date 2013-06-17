@@ -1,4 +1,4 @@
-<?php
+<?php namespace Bpez\TwitterTweets;
 
 use Made\Services\freebird\Client;
 
