@@ -15,8 +15,12 @@ Once installed you can easily access all of the Twitter API endpoints supported 
 You can view those enpoints [here](https://dev.twitter.com/docs/rate-limiting/1.1/limits). 
 */
 
-  // Define the main class
+// sudo chmod 666 twitter-last-cache.txt
+// sudo chmod 666 twitter-cache.json
+// Fix permissions of files not necessarly 666
+
 class TwitterTweets {
+  
     // The max number of tweets
     private $count = 1;
     // Trim the user informations from the data
@@ -28,7 +32,7 @@ class TwitterTweets {
 
     private $client;
 
-    // Define the constructor
+    
     public function __construct($username, $auth, $numTweets = null)
     {
       // We make a default username in case the username is not set
@@ -48,8 +52,6 @@ class TwitterTweets {
           'token'       => $auth['token'],
           'token_secret'  => $auth['token_secret']
       )));
-
-        
 
     }
 
