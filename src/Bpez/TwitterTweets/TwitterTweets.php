@@ -2,11 +2,17 @@
 
 namespace Bpez\TwitterTweets;
 
-use Made\Services\freebird\Client;
+use Guzzle\Http\Client;
 use DateTime;
 
 // To get access tokens go here:
 // https://dev.twitter.com/apps/new 
+
+/*
+Once installed you can easily access all of the Twitter API endpoints supported by 
+[Application Only Authentication](https://dev.twitter.com/docs/auth/application-only-auth). 
+You can view those enpoints [here](https://dev.twitter.com/docs/rate-limiting/1.1/limits). 
+*/
 
   // Define the main class
 class TwitterTweets {
@@ -22,24 +28,40 @@ class TwitterTweets {
     private $client;
 
     // Define the constructor
-    public function __construct($username, $yourKey , $yourSecretKey, $numTweets = null)
+    public function __construct($username, $auth, $numTweets = null)
     {
       // We make a default username in case the username is not set
       $this->user = $username;
 
       $this->count = ($numTweets != null)? $numTweets : $this->count;
 
-      // Setup freebird Client with Twitter application keys
-      $this->client = new Client();
+      // Create a client to work with the Twitter API
+      $this->client = new Client('https://api.twitter.com/{version}', array(
+          'version' => '1.1'
+      ));
 
-      $this->client->init_bearer_token($yourKey, $yourSecretKey);
+      // Sign all requests with the OauthPlugin
+      $this->client->addSubscriber(new Guzzle\Plugin\Oauth\OauthPlugin(array(
+          'consumer_key'  => $auth['consumer_key'],
+          'consumer_secret' => $auth['consumer_secret'],
+          'token'       => $auth['token'],
+          'token_secret'  => $auth['token_secret']
+      )));
+
+        
+
     }
 
     // Get the data from the URL
     private function fetch_url($username)
     {
-
-      $response = $this->client->api_request('statuses/user_timeline.json', array('screen_name' => $username, 'count' => $this->count, 'trim_user' => $this->trim_user));
+      try {
+        $response = $this->client->get('statuses/user_timeline.json?screen_name='.$username.'&count='.$this->count.'&trim_user='.$this->trim_user)->send()->getBody();
+      } catch (\Guzzle\Http\Exception\ClientErrorResponseException $e) {
+        //$response = $e->getResponse();
+        return false; // Fail safe return false to get cached tweet
+      }
+      
       $tweets = json_decode($response);
 
       // Check if we reach the requests limit

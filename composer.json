@@ -3,7 +3,7 @@
     "description": "Get your latest tweets with PHP, and cache them.",
     "require": {
         "php": ">=5.3.0",
-        "mademovement/freebird-php": "v0.2.0"
+        "guzzle/guzzle": "~3.7"
     },
     "license": "GNU General Public License",
     "minimum-stability": "dev",

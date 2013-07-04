@@ -10,17 +10,15 @@ use Guzzle\Service\Command\AbstractCommand;
 use Guzzle\Service\Description\Operation;
 use Guzzle\Service\Description\Parameter;
 use Guzzle\Service\Description\SchemaValidator;
+use Guzzle\Service\Description\ServiceDescription;
 use Guzzle\Tests\Service\Mock\Command\MockCommand;
 use Guzzle\Tests\Service\Mock\Command\Sub\Sub;
 
+/**
+ * @covers Guzzle\Service\Command\AbstractCommand
+ */
 class CommandTest extends AbstractCommandTest
 {
-    /**
-     * @covers Guzzle\Service\Command\AbstractCommand::__construct
-     * @covers Guzzle\Service\Command\AbstractCommand::init
-     * @covers Guzzle\Service\Command\AbstractCommand::isPrepared
-     * @covers Guzzle\Service\Command\AbstractCommand::isExecuted
-     */
     public function testConstructorAddsDefaultParams()
     {
         $command = new MockCommand();
@@ -29,9 +27,6 @@ class CommandTest extends AbstractCommandTest
         $this->assertFalse($command->isExecuted());
     }
 
-    /**
-     * @covers Guzzle\Service\Command\AbstractCommand::getName
-     */
     public function testDeterminesShortName()
     {
         $api = new Operation(array('name' => 'foobar'));
@@ -46,7 +41,6 @@ class CommandTest extends AbstractCommandTest
     }
 
     /**
-     * @covers Guzzle\Service\Command\AbstractCommand::getRequest
      * @expectedException RuntimeException
      */
     public function testGetRequestThrowsExceptionBeforePreparation()
@@ -55,9 +49,6 @@ class CommandTest extends AbstractCommandTest
         $command->getRequest();
     }
 
-    /**
-     * @covers Guzzle\Service\Command\AbstractCommand::getResponse
-     */
     public function testGetResponseExecutesCommandsWhenNeeded()
     {
         $response = new Response(200);
@@ -69,9 +60,6 @@ class CommandTest extends AbstractCommandTest
         $this->assertSame($response, $command->getResponse());
     }
 
-    /**
-     * @covers Guzzle\Service\Command\AbstractCommand::getResult
-     */
     public function testGetResultExecutesCommandsWhenNeeded()
     {
         $response = new Response(200);
@@ -83,12 +71,6 @@ class CommandTest extends AbstractCommandTest
         $this->assertSame($response, $command->getResult());
     }
 
-    /**
-     * @covers Guzzle\Service\Command\AbstractCommand::setClient
-     * @covers Guzzle\Service\Command\AbstractCommand::getClient
-     * @covers Guzzle\Service\Command\AbstractCommand::prepare
-     * @covers Guzzle\Service\Command\AbstractCommand::isPrepared
-     */
     public function testSetClient()
     {
         $command = new MockCommand();
@@ -108,17 +90,6 @@ class CommandTest extends AbstractCommandTest
         $this->assertTrue($command->isPrepared());
     }
 
-    /**
-     * @covers Guzzle\Service\Command\AbstractCommand::execute
-     * @covers Guzzle\Service\Command\AbstractCommand::setClient
-     * @covers Guzzle\Service\Command\AbstractCommand::getRequest
-     * @covers Guzzle\Service\Command\AbstractCommand::getResponse
-     * @covers Guzzle\Service\Command\AbstractCommand::getResult
-     * @covers Guzzle\Service\Command\AbstractCommand::prepare
-     * @covers Guzzle\Service\Command\AbstractCommand::process
-     * @covers Guzzle\Service\Command\AbstractCommand::prepare
-     * @covers Guzzle\Service\Client::execute
-     */
     public function testExecute()
     {
         $client = $this->getClient();
@@ -138,12 +109,9 @@ class CommandTest extends AbstractCommandTest
         $this->assertInstanceOf('Guzzle\\Http\\Message\\Request', $command->getRequest());
         // Make sure that the result was automatically set to a SimpleXMLElement
         $this->assertInstanceOf('SimpleXMLElement', $command->getResult());
-        $this->assertEquals('123', (string)$command->getResult()->data);
+        $this->assertEquals('123', (string) $command->getResult()->data);
     }
 
-    /**
-     * @covers Guzzle\Service\Command\AbstractCommand::process
-     */
     public function testConvertsJsonResponsesToArray()
     {
         $client = $this->getClient();
@@ -162,7 +130,6 @@ class CommandTest extends AbstractCommandTest
     }
 
     /**
-     * @covers Guzzle\Service\Command\AbstractCommand::process
      * @expectedException \Guzzle\Common\Exception\RuntimeException
      */
     public function testConvertsInvalidJsonResponsesToArray()
@@ -179,9 +146,6 @@ class CommandTest extends AbstractCommandTest
         $command->execute();
     }
 
-    /**
-     * @covers Guzzle\Service\Command\AbstractCommand::process
-     */
     public function testProcessResponseIsNotXml()
     {
         $client = $this->getClient();
@@ -198,7 +162,6 @@ class CommandTest extends AbstractCommandTest
     }
 
     /**
-     * @covers Guzzle\Service\Command\AbstractCommand::execute
      * @expectedException RuntimeException
      */
     public function testExecuteThrowsExceptionWhenNoClientIsSet()
@@ -208,7 +171,6 @@ class CommandTest extends AbstractCommandTest
     }
 
     /**
-     * @covers Guzzle\Service\Command\AbstractCommand::prepare
      * @expectedException RuntimeException
      */
     public function testPrepareThrowsExceptionWhenNoClientIsSet()
@@ -217,10 +179,6 @@ class CommandTest extends AbstractCommandTest
         $command->prepare();
     }
 
-    /**
-     * @covers Guzzle\Service\Command\AbstractCommand::prepare
-     * @covers Guzzle\Service\Command\AbstractCommand::getRequestHeaders
-     */
     public function testCommandsAllowsCustomRequestHeaders()
     {
         $command = new MockCommand();
@@ -232,9 +190,6 @@ class CommandTest extends AbstractCommandTest
         $this->assertEquals('123', (string) $command->getRequest()->getHeader('test'));
     }
 
-    /**
-     * @covers Guzzle\Service\Command\AbstractCommand::__construct
-     */
     public function testCommandsAllowsCustomRequestHeadersAsArray()
     {
         $command = new MockCommand(array(AbstractCommand::HEADERS_OPTION => array('Foo' => 'Bar')));
@@ -256,9 +211,6 @@ class CommandTest extends AbstractCommandTest
         )));
     }
 
-    /**
-     * @covers Guzzle\Service\Command\AbstractCommand
-     */
     public function testCommandsUsesOperation()
     {
         $api = $this->getOperation();
@@ -269,9 +221,6 @@ class CommandTest extends AbstractCommandTest
         $this->assertSame($api, $command->getOperation($api));
     }
 
-    /**
-     * @covers Guzzle\Service\Command\AbstractCommand::__clone
-     */
     public function testCloneMakesNewRequest()
     {
         $client = $this->getClient();
@@ -285,11 +234,6 @@ class CommandTest extends AbstractCommandTest
         $this->assertFalse($command2->isPrepared());
     }
 
-    /**
-     * @covers Guzzle\Service\Command\AbstractCommand::setOnComplete
-     * @covers Guzzle\Service\Command\AbstractCommand::__construct
-     * @covers Guzzle\Service\Command\AbstractCommand::getResult
-     */
     public function testHasOnCompleteMethod()
     {
         $that = $this;
@@ -312,8 +256,7 @@ class CommandTest extends AbstractCommandTest
     }
 
     /**
-     * @covers Guzzle\Service\Command\AbstractCommand::setOnComplete
-     * @expectedException Guzzle\Common\Exception\InvalidArgumentException
+     * @expectedException \Guzzle\Common\Exception\InvalidArgumentException
      */
     public function testOnCompleteMustBeCallable()
     {
@@ -322,9 +265,6 @@ class CommandTest extends AbstractCommandTest
         $command->setOnComplete('foo');
     }
 
-    /**
-     * @covers Guzzle\Service\Command\AbstractCommand::setResult
-     */
     public function testCanSetResultManually()
     {
         $client = $this->getClient();
@@ -337,9 +277,6 @@ class CommandTest extends AbstractCommandTest
         $this->assertEquals('foo!', $command->getResult());
     }
 
-    /**
-     * @covers Guzzle\Service\Command\AbstractCommand
-     */
     public function testCanInitConfig()
     {
         $command = $this->getMockBuilder('Guzzle\\Service\\Command\\AbstractCommand')
@@ -358,9 +295,6 @@ class CommandTest extends AbstractCommandTest
         $this->assertEquals('baaar', $command['baz']);
     }
 
-    /**
-     * @covers Guzzle\Service\Command\AbstractCommand::prepare
-     */
     public function testAddsCurlOptionsToRequestsWhenPreparing()
     {
         $command = new MockCommand(array(
@@ -373,9 +307,6 @@ class CommandTest extends AbstractCommandTest
         $this->assertEquals(8080, $request->getCurlOptions()->get(CURLOPT_PROXYPORT));
     }
 
-    /**
-     * @covers Guzzle\Service\Command\AbstractCommand::__invoke
-     */
     public function testIsInvokable()
     {
         $client = $this->getClient();
@@ -387,10 +318,6 @@ class CommandTest extends AbstractCommandTest
         $this->assertSame($response, $command());
     }
 
-    /**
-     * @covers Guzzle\Service\Command\AbstractCommand::__construct
-     * @covers Guzzle\Service\Command\AbstractCommand::createOperation
-     */
     public function testCreatesDefaultOperation()
     {
         $command = $this->getMockBuilder('Guzzle\Service\Command\AbstractCommand')->getMockForAbstractClass();
@@ -450,6 +377,34 @@ class CommandTest extends AbstractCommandTest
         $v->expects($this->any())->method('validate')->will($this->returnValue(false));
         $v->expects($this->any())->method('getErrors')->will($this->returnValue(array('[Foo] Baz', '[Bar] Boo')));
         $command->setValidator($v);
+        $command->prepare();
+    }
+
+    /**
+     * @expectedException \Guzzle\Service\Exception\ValidationException
+     * @expectedExceptionMessage Validation errors: [abc] must be of type string
+     */
+    public function testValidatesAdditionalParameters()
+    {
+        $description = ServiceDescription::factory(array(
+            'operations' => array(
+                'foo' => array(
+                    'parameters' => array(
+                        'baz' => array('type' => 'integer')
+                    ),
+                    'additionalParameters' => array(
+                        'type' => 'string'
+                    )
+                )
+            )
+        ));
+
+        $client = new Client();
+        $client->setDescription($description);
+        $command = $client->getCommand('foo', array(
+            'abc'             => false,
+            'command.headers' => array('foo' => 'bar')
+        ));
         $command->prepare();
     }
 

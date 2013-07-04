@@ -3,6 +3,7 @@
 namespace Guzzle\Tests\Http\Message;
 
 use Guzzle\Http\Message\Header;
+use Guzzle\Http\Message\Response;
 
 /**
  * @covers Guzzle\Http\Message\Header
@@ -14,16 +15,6 @@ class HeaderTest extends \Guzzle\Tests\GuzzleTestCase
         'Zoo'   => 'bar',
     );
 
-    public function testRawReturnsRawArray()
-    {
-        $i = new Header('Zoo', $this->test);
-
-        $this->assertEquals(array(
-            'zoo' => array('foo', 'Foo'),
-            'Zoo' => array('bar')
-        ), $i->raw());
-    }
-
     public function testStoresHeaderName()
     {
         $i = new Header('Zoo', $this->test);
@@ -34,17 +25,16 @@ class HeaderTest extends \Guzzle\Tests\GuzzleTestCase
     {
         $i = new Header('Zoo', $this->test);
         $this->assertEquals('foo, Foo, bar', (string) $i);
-        $i->setGlue('; ');
+        $i->setGlue(';');
         $this->assertEquals('foo; Foo; bar', (string) $i);
     }
 
-    public function testNormalizesCases()
+    public function testNormalizesGluedHeaders()
     {
-        $h = new Header('Zoo', $this->test);
-        $h->normalize();
-        $this->assertEquals(array(
-            'Zoo' => array('foo', 'Foo', 'bar')
-        ), $h->raw());
+        $h = new Header('Zoo', array('foo, Faz', 'bar'));
+        $result = $h->normalize(true)->toArray();
+        natsort($result);
+        $this->assertEquals(array('bar', 'foo', 'Faz'), $result);
     }
 
     public function testCanSearchForValues()
@@ -54,9 +44,7 @@ class HeaderTest extends \Guzzle\Tests\GuzzleTestCase
         $this->assertTrue($h->hasValue('Foo'));
         $this->assertTrue($h->hasValue('bar'));
         $this->assertFalse($h->hasValue('moo'));
-
         $this->assertFalse($h->hasValue('FoO'));
-        $this->assertTrue($h->hasValue('FoO', true));
     }
 
     public function testIsCountable()
@@ -93,26 +81,11 @@ class HeaderTest extends \Guzzle\Tests\GuzzleTestCase
         // Allows null array for a single null header
         $h = new Header('Foo', array(null));
         $this->assertEquals('', (string) $h);
-        $this->assertEquals(1, count($h));
 
         // Allows empty string
         $h = new Header('Foo', '');
         $this->assertEquals('', (string) $h);
         $this->assertEquals(1, count($h));
-    }
-
-    public function testUsesHeaderNameWhenNoneIsSupplied()
-    {
-        $h = new Header('Foo', 'bar', ';');
-        $h->add('baz');
-        $this->assertEquals(array('Foo'), array_keys($h->raw()));
-    }
-
-    public function testCanCheckForExactHeaderValues()
-    {
-        $h = new Header('Foo', 'bar', ';');
-        $this->assertTrue($h->hasExactHeader('Foo'));
-        $this->assertFalse($h->hasExactHeader('foo'));
     }
 
     public function testCanRemoveValues()
@@ -122,5 +95,63 @@ class HeaderTest extends \Guzzle\Tests\GuzzleTestCase
         $this->assertTrue($h->hasValue('Foo'));
         $this->assertFalse($h->hasValue('bar'));
         $this->assertTrue($h->hasValue('baz'));
+    }
+
+    public function testAllowsArrayInConstructor()
+    {
+        $h = new Header('Foo', array('Testing', '123', 'Foo=baz'));
+        $this->assertEquals(array('Testing', '123', 'Foo=baz'), $h->toArray());
+    }
+
+    public function parseParamsProvider()
+    {
+        $res1 = array(
+            array(
+                '<http:/.../front.jpeg>' => '',
+                'rel' => 'front',
+                'type' => 'image/jpeg',
+            ),
+            array(
+                '<http://.../back.jpeg>' => '',
+                'rel' => 'back',
+                'type' => 'image/jpeg',
+            ),
+        );
+
+        return array(
+            array(
+                '<http:/.../front.jpeg>; rel="front"; type="image/jpeg", <http://.../back.jpeg>; rel=back; type="image/jpeg"',
+                $res1
+            ),
+            array(
+                '<http:/.../front.jpeg>; rel="front"; type="image/jpeg",<http://.../back.jpeg>; rel=back; type="image/jpeg"',
+                $res1
+            ),
+            array(
+                'foo="baz"; bar=123, boo, test="123", foobar="foo;bar"',
+                array(
+                    array('foo' => 'baz', 'bar' => '123'),
+                    array('boo' => ''),
+                    array('test' => '123'),
+                    array('foobar' => 'foo;bar')
+                )
+            ),
+            array(
+                '<http://.../side.jpeg?test=1>; rel="side"; type="image/jpeg",<http://.../side.jpeg?test=2>; rel=side; type="image/jpeg"',
+                array(
+                    array('<http://.../side.jpeg?test=1>' => '', 'rel' => 'side', 'type' => 'image/jpeg'),
+                    array('<http://.../side.jpeg?test=2>' => '', 'rel' => 'side', 'type' => 'image/jpeg')
+                )
+            )
+        );
+    }
+
+    /**
+     * @dataProvider parseParamsProvider
+     */
+    public function testParseParams($header, $result)
+    {
+        $response = new Response(200, array('Link' => $header));
+        $this->assertEquals($result, $response->getHeader('Link')->parseParams());
     }
 }

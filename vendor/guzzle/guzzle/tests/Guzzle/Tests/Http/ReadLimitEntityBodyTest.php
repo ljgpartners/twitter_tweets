@@ -10,14 +10,10 @@ use Guzzle\Http\ReadLimitEntityBody;
  */
 class ReadLimitEntityBodyTest extends \Guzzle\Tests\GuzzleTestCase
 {
-    /**
-     * @var ReadLimitEntityBody
-     */
+    /** @var ReadLimitEntityBody */
     protected $body;
 
-    /**
-     * @var EntityBody
-     */
+    /** @var EntityBody */
     protected $decorated;
 
     public function setUp()
@@ -31,6 +27,13 @@ class ReadLimitEntityBodyTest extends \Guzzle\Tests\GuzzleTestCase
         $body = EntityBody::factory('foo_baz_bar');
         $limited = new ReadLimitEntityBody($body, 3, 4);
         $this->assertEquals('baz', (string) $limited);
+    }
+
+    public function testReturnsSubsetOfEmptyBodyWhenCastToString()
+    {
+        $body = EntityBody::factory('');
+        $limited = new ReadLimitEntityBody($body, 0, 10);
+        $this->assertEquals('', (string) $limited);
     }
 
     public function testSeeksWhenConstructed()

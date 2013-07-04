@@ -260,6 +260,23 @@ class OperationTest extends \Guzzle\Tests\GuzzleTestCase
         $this->assertEquals('model', $o->setResponseType('model')->getResponseType());
     }
 
+    public function testHasAdditionalParameters()
+    {
+        $o = new Operation(array(
+            'additionalParameters' => array(
+                'type' => 'string', 'name' => 'binks'
+            ),
+            'parameters' => array(
+                'foo' => array('type' => 'integer')
+            )
+        ));
+        $this->assertEquals('string', $o->getAdditionalParameters()->getType());
+        $arr = $o->toArray();
+        $this->assertEquals(array(
+            'type' => 'string'
+        ), $arr['additionalParameters']);
+    }
+
     /**
      * @return Operation
      */

@@ -11,20 +11,19 @@ use Guzzle\Service\Command\CommandInterface;
  */
 class XmlVisitor extends AbstractResponseVisitor
 {
-    /**
-     * {@inheritdoc}
-     */
     public function before(CommandInterface $command, array &$result)
     {
         // Set the result of the command to the array conversion of the XML body
         $result = json_decode(json_encode($command->getResponse()->xml()), true);
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function visit(CommandInterface $command, Response $response, Parameter $param, &$value, $context =  null)
-    {
+    public function visit(
+        CommandInterface $command,
+        Response $response,
+        Parameter $param,
+        &$value,
+        $context =  null
+    ) {
         $sentAs = $param->getWireName();
         $name = $param->getName();
         if (isset($value[$sentAs])) {
@@ -33,12 +32,6 @@ class XmlVisitor extends AbstractResponseVisitor
                 $value[$name] = $value[$sentAs];
                 unset($value[$sentAs]);
             }
-        } elseif ($param->getType() == 'array') {
-            // Use a default array when the value is missing
-            $value[$name] = array();
-        } elseif ($param->getType() == 'boolean') {
-            // Use a default value of false when the value is missing
-            $value[$name] = false;
         }
     }
 
@@ -124,9 +117,6 @@ class XmlVisitor extends AbstractResponseVisitor
                         $value[$name] = $value[$sentAs];
                         unset($value[$sentAs]);
                     }
-                } elseif ($property->getType() == 'array') {
-                    // Set a default empty array
-                    $value[$name] = array();
                 }
             }
         }

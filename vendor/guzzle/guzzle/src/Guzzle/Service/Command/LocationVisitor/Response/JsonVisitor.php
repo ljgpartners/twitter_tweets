@@ -16,20 +16,19 @@ use Guzzle\Service\Command\CommandInterface;
  */
 class JsonVisitor extends AbstractResponseVisitor
 {
-    /**
-     * {@inheritdoc}
-     */
     public function before(CommandInterface $command, array &$result)
     {
         // Ensure that the result of the command is always rooted with the parsed JSON data
         $result = $command->getResponse()->json();
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function visit(CommandInterface $command, Response $response, Parameter $param, &$value, $context =  null)
-    {
+    public function visit(
+        CommandInterface $command,
+        Response $response,
+        Parameter $param,
+        &$value,
+        $context =  null
+    ) {
         $name = $param->getName();
         $key = $param->getWireName();
         if (isset($value[$key])) {
@@ -64,8 +63,13 @@ class JsonVisitor extends AbstractResponseVisitor
                 if ($properties = $param->getProperties()) {
                     foreach ($properties as $property) {
                         $name = $property->getName();
-                        if (isset($value[$name])) {
-                            $this->recursiveProcess($property, $value[$name]);
+                        $key = $property->getWireName();
+                        if (isset($value[$key])) {
+                            $this->recursiveProcess($property, $value[$key]);
+                            if ($key != $name) {
+                                $value[$name] = $value[$key];
+                                unset($value[$key]);
+                            }
                         }
                     }
                 }

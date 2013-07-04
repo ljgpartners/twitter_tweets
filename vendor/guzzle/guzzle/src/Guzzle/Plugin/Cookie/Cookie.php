@@ -9,9 +9,7 @@ use Guzzle\Common\ToArrayInterface;
  */
 class Cookie implements ToArrayInterface
 {
-    /**
-     * @var array Cookie data
-     */
+    /** @var array Cookie data */
     protected $data;
 
     /**
@@ -439,6 +437,10 @@ class Cookie implements ToArrayInterface
 
             // Root domains don't match except for .local.
             if (!substr_count($realDomain, '.') && strcasecmp($realDomain, 'local')) {
+                return false;
+            }
+
+            if (filter_var($domain, FILTER_VALIDATE_IP)) {
                 return false;
             }
 

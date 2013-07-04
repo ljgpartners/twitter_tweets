@@ -10,10 +10,11 @@ use Guzzle\Plugin\Log\LogPlugin;
 use Guzzle\Plugin\Mock\MockPlugin;
 use Guzzle\Http\Curl\CurlMulti;
 use Guzzle\Http\Client;
-use Guzzle\Http\Utils;
+use Guzzle\Common\Version;
 
 /**
  * @group server
+ * @covers Guzzle\Http\Client
  */
 class ClientTest extends \Guzzle\Tests\GuzzleTestCase
 {
@@ -29,12 +30,6 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         ));
     }
 
-    /**
-     * @covers Guzzle\Http\Client::getConfig
-     * @covers Guzzle\Http\Client::setConfig
-     * @covers Guzzle\Http\Client::setBaseUrl
-     * @covers Guzzle\Http\Client::getBaseUrl
-     */
     public function testAcceptsConfig()
     {
         $client = new Client('http://www.google.com/');
@@ -54,17 +49,11 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         }
     }
 
-    /**
-     * @covers Guzzle\Http\Client::getAllEvents
-     */
     public function testDescribesEvents()
     {
         $this->assertEquals(array('client.create_request'), Client::getAllEvents());
     }
 
-    /**
-     * @covers Guzzle\Http\Client::__construct
-     */
     public function testConstructorCanAcceptConfig()
     {
         $client = new Client('http://www.test.com/', array(
@@ -73,9 +62,6 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $this->assertEquals('123', $client->getConfig('data'));
     }
 
-    /**
-     * @covers Guzzle\Http\Client::setConfig
-     */
     public function testCanUseCollectionAsConfig()
     {
         $client = new Client('http://www.google.com/');
@@ -87,37 +73,15 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $this->assertEquals('v1', $client->getConfig('api'));
     }
 
-    /**
-     * @covers Guzzle\Http\Client
-     */
     public function testExpandsUriTemplatesUsingConfig()
     {
         $client = new Client('http://www.google.com/');
-        $client->setConfig(array(
-            'api' => 'v1',
-            'key' => 'value',
-            'foo' => 'bar'
-        ));
-        $this->assertEquals('Testing...api/v1/key/value', $client->expandTemplate('Testing...api/{api}/key/{key}'));
-
-        // Make sure that the client properly validates and injects config
-        $this->assertEquals('bar', $client->getConfig('foo'));
+        $client->setConfig(array('api' => 'v1', 'key' => 'value', 'foo' => 'bar'));
+        $ref = new \ReflectionMethod($client, 'expandTemplate');
+        $ref->setAccessible(true);
+        $this->assertEquals('Testing...api/v1/key/value', $ref->invoke($client, 'Testing...api/{api}/key/{key}'));
     }
 
-    /**
-     * @covers Guzzle\Http\Client::createRequest
-     * @expectedException \Guzzle\Common\Exception\InvalidArgumentException
-     */
-    public function testValidatesArrayForTemplateIsValid()
-    {
-        $client = new Client('http://www.google.com/');
-        $client->createRequest('GET', array('foo' => 'bar', 'baz' => 'bam'));
-    }
-
-    /**
-     * @covers Guzzle\Http\Client::__construct
-     * @covers Guzzle\Http\Client::createRequest
-     */
     public function testClientAttachersObserversToRequests()
     {
         $this->getServer()->flush();
@@ -133,10 +97,6 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $this->assertTrue($this->hasSubscriber($request, $logPlugin));
     }
 
-    /**
-     * @covers Guzzle\Http\Client::getBaseUrl
-     * @covers Guzzle\Http\Client::setBaseUrl
-     */
     public function testClientReturnsValidBaseUrls()
     {
         $client = new Client('http://www.{foo}.{data}/', array(
@@ -148,34 +108,6 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $this->assertEquals('http://www.google.com/', $client->getBaseUrl());
     }
 
-    /**
-     * @covers Guzzle\Http\Client::setUserAgent
-     * @covers Guzzle\Http\Client::createRequest
-     * @covers Guzzle\Http\Client::prepareRequest
-     */
-    public function testSetsUserAgent()
-    {
-        $client = new Client('http://www.test.com/', array(
-            'api' => 'v1'
-        ));
-
-        // Set the user agent string and include the default user agent appended
-        $this->assertSame($client, $client->setUserAgent('Test/1.0Ab', true));
-        $this->assertEquals('Test/1.0Ab ' . Utils::getDefaultUserAgent(), $client->get()->getHeader('User-Agent'));
-
-        // Set the user agent string without the default appended
-        $client->setUserAgent('Test/1.0Ab');
-        $this->assertEquals('Test/1.0Ab', $client->get()->getHeader('User-Agent'));
-
-        // Set default headers and make sure the user agent string is still set
-        $client->setDefaultHeaders(array());
-        $this->assertEquals('Test/1.0Ab', $client->get()->getHeader('User-Agent'));
-    }
-
-    /**
-     * @covers Guzzle\Http\Client::createRequest
-     * @covers Guzzle\Http\Client::prepareRequest
-     */
     public function testClientAddsCurlOptionsToRequests()
     {
         $client = new Client('http://www.test.com/', array(
@@ -196,9 +128,6 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $this->assertEquals('abc', $options->get('blacklist'));
     }
 
-    /**
-     * @covers Guzzle\Http\Client::setSslVerification
-     */
     public function testClientAllowsFineGrainedSslControlButIsSecureByDefault()
     {
         $client = new Client('https://www.secure.com/');
@@ -215,9 +144,7 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $options = $request->getCurlOptions();
         $this->assertSame(__DIR__, $options->get(CURLOPT_CAPATH));
     }
-    /**
-     * @covers Guzzle\Http\Client::__construct
-     */
+
     public function testConfigSettingsControlSslConfiguration()
     {
         // Use the default ca certs on the system
@@ -231,9 +158,6 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $this->assertSame(2, $options[CURLOPT_SSL_VERIFYHOST]);
     }
 
-    /**
-     * @covers Guzzle\Http\Client::setSslVerification
-     */
     public function testClientAllowsUnsafeOperationIfRequested()
     {
         // be really unsafe if you insist
@@ -249,8 +173,14 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
     }
 
     /**
-     * @covers Guzzle\Http\Client::setSslVerification
+     * @expectedException \Guzzle\Common\Exception\RuntimeException
      */
+    public function testThrowsExceptionForInvalidCertificate()
+    {
+        $client = new Client('https://www.secure.com/');
+        $client->setSslVerification('/path/to/missing/file');
+    }
+
     public function testClientAllowsSettingSpecificSslCaInfo()
     {
         // set a file other than the provided cacert.pem
@@ -265,7 +195,6 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
     }
 
     /**
-     * @covers Guzzle\Http\Client::setSslVerification
      * @expectedException Guzzle\Common\Exception\InvalidArgumentException
      */
     public function testClientPreventsInadvertentInsecureVerifyHostSetting()
@@ -278,7 +207,6 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
     }
 
     /**
-     * @covers Guzzle\Http\Client::setSslVerification
      * @expectedException Guzzle\Common\Exception\InvalidArgumentException
      */
     public function testClientPreventsInvalidVerifyPeerSetting()
@@ -290,11 +218,9 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $client->setSslVerification(__FILE__, 'yes');
     }
 
-    /**
-     * @covers Guzzle\Http\Client::prepareRequest
-     */
     public function testClientAddsParamsToRequests()
     {
+        Version::$emitWarnings = false;
         $client = new Client('http://www.example.com', array(
             'api' => 'v1',
             'request.params' => array(
@@ -305,6 +231,7 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $request = $client->createRequest();
         $this->assertEquals('bar', $request->getParams()->get('foo'));
         $this->assertEquals('jar', $request->getParams()->get('baz'));
+        Version::$emitWarnings = true;
     }
 
     public function urlProvider()
@@ -318,14 +245,13 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
             array($u, '/absolute/path/to/resource', $this->getServer()->getUrl() . 'absolute/path/to/resource'),
             array($u, '/absolute/path/to/resource?a=b&c=d', $this->getServer()->getUrl() . 'absolute/path/to/resource?a=b&c=d'),
             array($u2, '/absolute/path/to/resource?a=b&c=d', $this->getServer()->getUrl()  . 'absolute/path/to/resource?a=b&c=d'),
-            array($u2, 'relative/path/to/resource', $this->getServer()->getUrl() . 'base/relative/path/to/resource?z=1'),
-            array($u2, 'relative/path/to/resource?another=query', $this->getServer()->getUrl() . 'base/relative/path/to/resource?z=1&another=query')
+            array($u2, 'relative/path/to/resource', $this->getServer()->getUrl() . 'base/relative/path/to/resource'),
+            array($u2, 'relative/path/to/resource?another=query', $this->getServer()->getUrl() . 'base/relative/path/to/resource?another=query')
         );
     }
 
     /**
      * @dataProvider urlProvider
-     * @covers Guzzle\Http\Client::createRequest
      */
     public function testBuildsRelativeUrls($baseUrl, $url, $result)
     {
@@ -333,9 +259,6 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $this->assertEquals($client->get($url)->getUrl(), $result);
     }
 
-    /**
-     * @covers Guzzle\Http\Client
-     */
     public function testAllowsConfigsToBeChangedAndInjectedInBaseUrl()
     {
         $client = new Client('http://{a}/{b}');
@@ -348,9 +271,6 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $this->assertEquals('http://test.com/index.html', $client->getBaseUrl());
     }
 
-    /**
-     * @covers Guzzle\Http\Client::createRequest
-     */
     public function testCreatesRequestsWithDefaultValues()
     {
         $client = new Client($this->getServer()->getUrl() . 'base');
@@ -380,15 +300,6 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $this->assertEquals($request->getUrl(), $this->getServer()->getUrl() . 'path/1?q=2');
     }
 
-    /**
-     * @covers Guzzle\Http\Client::get
-     * @covers Guzzle\Http\Client::delete
-     * @covers Guzzle\Http\Client::head
-     * @covers Guzzle\Http\Client::put
-     * @covers Guzzle\Http\Client::post
-     * @covers Guzzle\Http\Client::options
-     * @covers Guzzle\Http\Client::patch
-     */
     public function testClientHasHelperMethodsForCreatingRequests()
     {
         $url = $this->getServer()->getUrl();
@@ -407,9 +318,6 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $this->assertEquals($url . 'base?a=b', $client->delete('/base?a=b')->getUrl());
     }
 
-    /**
-     * @covers Guzzle\Http\Client::createRequest
-     */
     public function testClientInjectsConfigsIntoUrls()
     {
         $client = new Client('http://www.test.com/api/v1', array(
@@ -419,9 +327,6 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $this->assertEquals('http://www.test.com/api/v1/relative/123', $request->getUrl());
     }
 
-    /**
-     * @covers Guzzle\Http\Client
-     */
     public function testAllowsEmptyBaseUrl()
     {
         $client = new Client();
@@ -431,18 +336,15 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $request->send();
     }
 
-    /**
-     * @covers Guzzle\Http\Client::send
-     * @covers Guzzle\Http\Client::setCurlMulti
-     * @covers Guzzle\Http\Client::getCurlMulti
-     */
     public function testAllowsCustomCurlMultiObjects()
     {
         $mock = $this->getMock('Guzzle\\Http\\Curl\\CurlMulti', array('add', 'send'));
         $mock->expects($this->once())
-             ->method('add');
+            ->method('add')
+            ->will($this->returnSelf());
         $mock->expects($this->once())
-             ->method('send');
+            ->method('send')
+            ->will($this->returnSelf());
 
         $client = new Client();
         $client->setCurlMulti($mock);
@@ -452,9 +354,6 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $client->send($request);
     }
 
-    /**
-     * @covers Guzzle\Http\Client::send
-     */
     public function testClientSendsMultipleRequests()
     {
         $client = new Client($this->getServer()->getUrl());
@@ -485,9 +384,6 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         ), $client->send($requests));
     }
 
-    /**
-     * @covers Guzzle\Http\Client::send
-     */
     public function testClientSendsSingleRequest()
     {
         $client = new Client($this->getServer()->getUrl());
@@ -499,8 +395,7 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
     }
 
     /**
-     * @covers Guzzle\Http\Client::send
-     * @expectedException Guzzle\Http\Exception\BadResponseException
+     * @expectedException \Guzzle\Http\Exception\BadResponseException
      */
     public function testClientThrowsExceptionForSingleRequest()
     {
@@ -513,8 +408,7 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
     }
 
     /**
-     * @covers Guzzle\Http\Client::send
-     * @expectedException Guzzle\Common\Exception\ExceptionCollection
+     * @expectedException \Guzzle\Common\Exception\ExceptionCollection
      */
     public function testClientThrowsExceptionForMultipleRequests()
     {
@@ -526,9 +420,6 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $client->send(array($client->get(), $client->head()));
     }
 
-    /**
-     * @covers Guzzle\Http\Client
-     */
     public function testQueryStringsAreNotDoubleEncoded()
     {
         $client = new Client('http://test.com', array(
@@ -545,9 +436,6 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $this->assertEquals('a&b', $request->getQuery()->get('test'));
     }
 
-    /**
-     * @covers Guzzle\Http\Client
-     */
     public function testQueryStringsAreNotDoubleEncodedUsingAbsolutePaths()
     {
         $client = new Client('http://test.com', array(
@@ -555,73 +443,30 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
             'query' => 'hi there',
         ));
         $request = $client->get('http://test.com{?query}');
-        $this->assertEquals('http://test.com/?query=hi%20there', $request->getUrl());
+        $this->assertEquals('http://test.com?query=hi%20there', $request->getUrl());
         $this->assertEquals('hi there', $request->getQuery()->get('query'));
     }
 
-    /**
-     * @covers Guzzle\Http\Client::setUriTemplate
-     * @covers Guzzle\Http\Client::getUriTemplate
-     */
     public function testAllowsUriTemplateInjection()
     {
-        $client = new Client('http://test.com', array(
-            'path'  => array('foo', 'bar'),
-            'query' => 'hi there',
-        ));
-
-        $a = $client->getUriTemplate();
-        $this->assertSame($a, $client->getUriTemplate());
+        $client = new Client('http://test.com');
+        $ref = new \ReflectionMethod($client, 'getUriTemplate');
+        $ref->setAccessible(true);
+        $a = $ref->invoke($client);
+        $this->assertSame($a, $ref->invoke($client));
         $client->setUriTemplate(new UriTemplate());
-        $this->assertNotSame($a, $client->getUriTemplate());
+        $this->assertNotSame($a, $ref->invoke($client));
     }
 
-    /**
-     * @covers Guzzle\Http\Client::expandTemplate
-     */
     public function testAllowsCustomVariablesWhenExpandingTemplates()
     {
-        $client = new Client('http://test.com', array(
-            'test' => 'hi',
-        ));
-
-        $uri = $client->expandTemplate('http://{test}{?query*}', array(
-            'query' => array(
-                'han' => 'solo'
-            )
-        ));
-
+        $client = new Client('http://test.com', array('test' => 'hi'));
+        $ref = new \ReflectionMethod($client, 'expandTemplate');
+        $ref->setAccessible(true);
+        $uri = $ref->invoke($client, 'http://{test}{?query*}', array('query' => array('han' => 'solo')));
         $this->assertEquals('http://hi?han=solo', $uri);
     }
 
-    /**
-     * @covers Guzzle\Http\Client::createRequest
-     * @expectedException InvalidArgumentException
-     */
-    public function testUriArrayMustContainExactlyTwoElements()
-    {
-        $client = new Client();
-        $client->createRequest('GET', array('haha!'));
-    }
-
-    /**
-     * @covers Guzzle\Http\Client::createRequest
-     * @expectedException InvalidArgumentException
-     */
-    public function testUriArrayMustContainAnArray()
-    {
-        $client = new Client();
-        $client->createRequest('GET', array('haha!', 'test'));
-    }
-
-    /**
-     * @covers Guzzle\Http\Client::createRequest
-     * @covers Guzzle\Http\Client::get
-     * @covers Guzzle\Http\Client::put
-     * @covers Guzzle\Http\Client::post
-     * @covers Guzzle\Http\Client::head
-     * @covers Guzzle\Http\Client::options
-     */
     public function testUriArrayAllowsCustomTemplateVariables()
     {
         $client = new Client();
@@ -636,19 +481,11 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
         $this->assertEquals('/hi', (string) $client->options(array('/{var}', $vars))->getUrl());
     }
 
-    /**
-     * @covers Guzzle\Http\Client::setDefaultHeaders
-     * @covers Guzzle\Http\Client::getDefaultHeaders
-     * @covers Guzzle\Http\Client::createRequest
-     */
     public function testAllowsDefaultHeaders()
     {
-        $default = array(
-            'X-Test' => 'Hi!'
-        );
-        $other = array(
-            'X-Other' => 'Foo'
-        );
+        Version::$emitWarnings = false;
+        $default = array('X-Test' => 'Hi!');
+        $other = array('X-Other' => 'Foo');
 
         $client = new Client();
         $client->setDefaultHeaders($default);
@@ -666,15 +503,90 @@ class ClientTest extends \Guzzle\Tests\GuzzleTestCase
 
         $request = $client->createRequest('GET');
         $this->assertEquals('Hi!', $request->getHeader('X-Test'));
+        Version::$emitWarnings = true;
     }
 
-    /**
-     * @covers Guzzle\Http\Client::setDefaultHeaders
-     * @expectedException InvalidArgumentException
-     */
-    public function testValidatesDefaultHeaders()
+    public function testDontReuseCurlMulti()
+    {
+        $client1 = new Client();
+        $client2 = new Client();
+        $this->assertNotSame($client1->getCurlMulti(), $client2->getCurlMulti());
+    }
+
+    public function testGetDefaultUserAgent()
     {
         $client = new Client();
-        $client->setDefaultHeaders('foo');
+        $agent = $this->readAttribute($client, 'userAgent');
+        $version = curl_version();
+        $testAgent = sprintf('Guzzle/%s curl/%s PHP/%s', Version::VERSION, $version['version'], PHP_VERSION);
+        $this->assertEquals($agent, $testAgent);
+
+        $client->setUserAgent('foo');
+        $this->assertEquals('foo', $this->readAttribute($client, 'userAgent'));
+    }
+
+    public function testOverwritesUserAgent()
+    {
+        $client = new Client();
+        $request = $client->createRequest('GET', 'http://www.foo.com', array('User-agent' => 'foo'));
+        $this->assertEquals('foo', (string) $request->getHeader('User-Agent'));
+    }
+
+    public function testUsesDefaultUserAgent()
+    {
+        $client = new Client();
+        $request = $client->createRequest('GET', 'http://www.foo.com');
+        $this->assertContains('Guzzle/', (string) $request->getHeader('User-Agent'));
+    }
+
+    public function testCanSetDefaultRequestOptions()
+    {
+        $client = new Client();
+        $client->getConfig()->set('request.options', array(
+            'query' => array('test' => '123', 'other' => 'abc'),
+            'headers' => array('Foo' => 'Bar', 'Baz' => 'Bam')
+        ));
+        $request = $client->createRequest('GET', 'http://www.foo.com?test=hello', array('Foo' => 'Test'));
+        // Explicit options on a request should overrule default options
+        $this->assertEquals('Test', (string) $request->getHeader('Foo'));
+        $this->assertEquals('hello', $request->getQuery()->get('test'));
+        // Default options should still be set
+        $this->assertEquals('abc', $request->getQuery()->get('other'));
+        $this->assertEquals('Bam', (string) $request->getHeader('Baz'));
+    }
+
+    public function testCanSetSetOptionsOnRequests()
+    {
+        $client = new Client();
+        $request = $client->createRequest('GET', 'http://www.foo.com?test=hello', array('Foo' => 'Test'), null, array(
+            'cookies' => array('michael' => 'test')
+        ));
+        $this->assertEquals('test', $request->getCookie('michael'));
+    }
+
+    public function testHasDefaultOptionsHelperMethods()
+    {
+        $client = new Client();
+        // With path
+        $client->setDefaultOption('headers/foo', 'bar');
+        $this->assertEquals('bar', $client->getDefaultOption('headers/foo'));
+        // With simple key
+        $client->setDefaultOption('allow_redirects', false);
+        $this->assertFalse($client->getDefaultOption('allow_redirects'));
+
+        $this->assertEquals(array(
+            'headers' => array('foo' => 'bar'),
+            'allow_redirects' => false
+        ), $client->getConfig('request.options'));
+
+        $request = $client->get('/');
+        $this->assertEquals('bar', $request->getHeader('foo'));
+    }
+
+    public function testHeadCanUseOptions()
+    {
+        $client = new Client();
+        $head = $client->head('http://www.foo.com', array(), array('query' => array('foo' => 'bar')));
+        $this->assertEquals('bar', $head->getQuery()->get('foo'));
     }
 }

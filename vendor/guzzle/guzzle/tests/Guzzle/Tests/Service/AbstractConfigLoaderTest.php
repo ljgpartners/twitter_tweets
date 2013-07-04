@@ -7,14 +7,10 @@ namespace Guzzle\Tests\Service;
  */
 class AbstractConfigLoaderTest extends \Guzzle\Tests\GuzzleTestCase
 {
-    /**
-     * @var \Guzzle\Service\AbstractConfigLoader
-     */
+    /** @var \Guzzle\Service\AbstractConfigLoader */
     protected $loader;
 
-    /**
-     * @var array Any files that need to be deleted on tear down
-     */
+    /** @var array Any files that need to be deleted on tear down */
     protected $cleanup = array();
 
     public function setUp()
@@ -41,11 +37,11 @@ class AbstractConfigLoaderTest extends \Guzzle\Tests\GuzzleTestCase
 
     /**
      * @expectedException \Guzzle\Common\Exception\InvalidArgumentException
-     * @expectedExceptionMessage Unable to open fooooooo! for reading
+     * @expectedExceptionMessage Unable to open fooooooo.json
      */
     public function testFileMustBeReadable()
     {
-        $this->loader->load('fooooooo!');
+        $this->loader->load('fooooooo.json');
     }
 
     /**
@@ -118,14 +114,14 @@ class AbstractConfigLoaderTest extends \Guzzle\Tests\GuzzleTestCase
 
     /**
      * @expectedException \Guzzle\Common\Exception\InvalidArgumentException
-     * @expectedExceptionMessage Unable to open foo for reading
+     * @expectedExceptionMessage Unable to open foo.json
      */
     public function testCanRemoveAliases()
     {
         $file = dirname(__DIR__) . '/TestData/services/json1.json';
-        $this->loader->addAlias('foo', $file);
-        $this->loader->removeAlias('foo');
-        $this->loader->load('foo');
+        $this->loader->addAlias('foo.json', $file);
+        $this->loader->removeAlias('foo.json');
+        $this->loader->load('foo.json');
     }
 
     public function testCanLoadArraysWithIncludes()
@@ -136,5 +132,18 @@ class AbstractConfigLoaderTest extends \Guzzle\Tests\GuzzleTestCase
         $this->loader->expects($this->exactly(1))->method('build')->will($this->returnArgument(0));
         $data = $this->loader->load($config);
         $this->assertEquals('bar', $data['services']['foo']['params']['baz']);
+    }
+
+    public function testDoesNotEnterInfiniteLoop()
+    {
+        $prefix = $file = dirname(__DIR__) . '/TestData/description';
+        $this->loader->load("{$prefix}/baz.json");
+        $this->assertCount(4, $this->readAttribute($this->loader, 'loadedFiles'));
+        // Ensure that the internal list of loaded files is reset
+        $this->loader->load("{$prefix}/../test_service2.json");
+        $this->assertCount(1, $this->readAttribute($this->loader, 'loadedFiles'));
+        // Ensure that previously loaded files will be reloaded when starting fresh
+        $this->loader->load("{$prefix}/baz.json");
+        $this->assertCount(4, $this->readAttribute($this->loader, 'loadedFiles'));
     }
 }

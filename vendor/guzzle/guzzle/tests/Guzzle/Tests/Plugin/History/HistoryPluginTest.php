@@ -3,10 +3,10 @@
 namespace Guzzle\Tests\Plugin\History;
 
 use Guzzle\Http\Client;
-use Guzzle\Http\Message\RequestFactory;
 use Guzzle\Http\Message\Request;
 use Guzzle\Http\Message\Response;
 use Guzzle\Plugin\History\HistoryPlugin;
+use Guzzle\Plugin\Mock\MockPlugin;
 
 /**
  * @covers Guzzle\Plugin\History\HistoryPlugin
@@ -55,14 +55,6 @@ class HistoryPluginTest extends \Guzzle\Tests\GuzzleTestCase
         $i = $h->getIterator();
         $this->assertEquals(1, count($i));
         $this->assertEquals($requests[0], $i[0]);
-    }
-
-    public function testIgnoresUnsentRequests()
-    {
-        $h = new HistoryPlugin();
-        $request = RequestFactory::getInstance()->create('GET', 'http://localhost/');
-        $h->add($request);
-        $this->assertEquals(0, count($h));
     }
 
     /**
@@ -119,5 +111,30 @@ class HistoryPluginTest extends \Guzzle\Tests\GuzzleTestCase
         $request->send();
 
         $this->assertSame($request, $h->getLastRequest());
+    }
+
+    public function testCanCastToString()
+    {
+        $client = new Client('http://localhost/');
+        $h = new HistoryPlugin();
+        $client->getEventDispatcher()->addSubscriber($h);
+
+        $mock = new MockPlugin(array(
+            new Response(301, array('Location' => '/redirect1', 'Content-Length' => 0)),
+            new Response(307, array('Location' => '/redirect2', 'Content-Length' => 0)),
+            new Response(200, array('Content-Length' => '2'), 'HI')
+        ));
+
+        $client->getEventDispatcher()->addSubscriber($mock);
+        $request = $client->get();
+        $request->send();
+        $this->assertEquals(3, count($h));
+        $this->assertEquals(3, count($mock->getReceivedRequests()));
+
+        $h = str_replace("\r", '', $h);
+        $this->assertContains("> GET / HTTP/1.1\nHost: localhost\nUser-Agent:", $h);
+        $this->assertContains("< HTTP/1.1 301 Moved Permanently\nLocation: /redirect1", $h);
+        $this->assertContains("< HTTP/1.1 307 Temporary Redirect\nLocation: /redirect2", $h);
+        $this->assertContains("< HTTP/1.1 200 OK\nContent-Length: 2\n\nHI", $h);
     }
 }

@@ -57,17 +57,17 @@
     },
     {
         "name": "guzzle/guzzle",
-        "version": "v3.1.2",
-        "version_normalized": "3.1.2.0",
+        "version": "dev-master",
+        "version_normalized": "9999999-dev",
         "source": {
             "type": "git",
-            "url": "https://github.com/guzzle/guzzle",
-            "reference": "v3.1.2"
+            "url": "https://github.com/guzzle/guzzle.git",
+            "reference": "b1677c00021756705c5e7535c4dc34ae7f93be3d"
         },
         "dist": {
             "type": "zip",
-            "url": "https://github.com/guzzle/guzzle/archive/v3.1.2.zip",
-            "reference": "v3.1.2",
+            "url": "https://api.github.com/repos/guzzle/guzzle/zipball/b1677c00021756705c5e7535c4dc34ae7f93be3d",
+            "reference": "b1677c00021756705c5e7535c4dc34ae7f93be3d",
             "shasum": ""
         },
         "require": {
@@ -90,6 +90,7 @@
             "guzzle/plugin-cache": "self.version",
             "guzzle/plugin-cookie": "self.version",
             "guzzle/plugin-curlauth": "self.version",
+            "guzzle/plugin-error-response": "self.version",
             "guzzle/plugin-history": "self.version",
             "guzzle/plugin-log": "self.version",
             "guzzle/plugin-md5": "self.version",
@@ -99,23 +100,22 @@
             "guzzle/stream": "self.version"
         },
         "require-dev": {
-            "doctrine/common": "*",
+            "doctrine/cache": "*",
             "monolog/monolog": "1.*",
             "phpunit/phpunit": "3.7.*",
+            "psr/log": "1.0.*",
             "symfony/class-loader": "*",
-            "zend/zend-cache1": "1.12",
-            "zend/zend-log1": "1.12",
             "zendframework/zend-cache": "2.0.*",
             "zendframework/zend-log": "2.0.*"
         },
-        "time": "2013-01-28 00:07:40",
+        "time": "2013-07-02 19:53:26",
         "type": "library",
         "extra": {
             "branch-alias": {
-                "dev-master": "3.1-dev"
+                "dev-master": "3.7-dev"
             }
         },
-        "installation-source": "dist",
+        "installation-source": "source",
         "autoload": {
             "psr-0": {
                 "Guzzle\\Tests": "tests/",
@@ -147,60 +147,6 @@
             "http client",
             "rest",
             "web service"
-        ]
-    },
-    {
-        "name": "mademovement/freebird-php",
-        "version": "v0.2.0",
-        "version_normalized": "0.2.0.0",
-        "source": {
-            "type": "git",
-            "url": "https://github.com/mademovement/freebird-php.git",
-            "reference": "v0.2.0"
-        },
-        "dist": {
-            "type": "zip",
-            "url": "https://api.github.com/repos/mademovement/freebird-php/zipball/v0.2.0",
-            "reference": "v0.2.0",
-            "shasum": ""
-        },
-        "require": {
-            "guzzle/guzzle": "3.1.*",
-            "php": ">=5.3.0"
-        },
-        "require-dev": {
-            "phpunit/phpunit": "*",
-            "slim/slim": "dev-develop"
-        },
-        "time": "2013-06-06 23:18:25",
-        "type": "library",
-        "installation-source": "dist",
-        "autoload": {
-            "psr-0": {
-                "Made\\Services\\freebird": "lib"
-            }
-        },
-        "notification-url": "https://packagist.org/downloads/",
-        "license": [
-            "Apache-2.0"
-        ],
-        "authors": [
-            {
-                "name": "Corban Baxter",
-                "email": "cbaxter@mademovement.com",
-                "homepage": "https://github.com/mademovement",
-                "role": "developer"
-            }
-        ],
-        "description": "Twitter API v1.1 Application only authoization library",
-        "homepage": "https://github.com/mademovement/freebird-php",
-        "keywords": [
-            "api",
-            "app only auth",
-            "application",
-            "freebird",
-            "sdk",
-            "twitter"
         ]
     }
 ]

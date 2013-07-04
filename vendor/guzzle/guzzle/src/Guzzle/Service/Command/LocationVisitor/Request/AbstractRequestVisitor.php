@@ -6,19 +6,14 @@ use Guzzle\Service\Command\CommandInterface;
 use Guzzle\Http\Message\RequestInterface;
 use Guzzle\Service\Description\Parameter;
 
-/**
- * {@inheritdoc}
- */
 abstract class AbstractRequestVisitor implements RequestVisitorInterface
 {
     /**
-     * {@inheritdoc}
      * @codeCoverageIgnore
      */
     public function after(CommandInterface $command, RequestInterface $request) {}
 
     /**
-     * {@inheritdoc}
      * @codeCoverageIgnore
      */
     public function visit(CommandInterface $command, RequestInterface $request, Parameter $param, $value) {}
@@ -69,6 +64,6 @@ abstract class AbstractRequestVisitor implements RequestVisitorInterface
             }
         }
 
-        return $value;
+        return $param->filter($value);
     }
 }

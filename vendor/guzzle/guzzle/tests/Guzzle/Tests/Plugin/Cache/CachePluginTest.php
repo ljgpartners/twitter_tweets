@@ -3,7 +3,9 @@
 namespace Guzzle\Tests\Plugin\Cache;
 
 use Guzzle\Common\Event;
+use Guzzle\Common\Version;
 use Guzzle\Cache\DoctrineCacheAdapter;
+use Guzzle\Http\Client;
 use Guzzle\Http\Message\Request;
 use Guzzle\Http\Message\Response;
 use Guzzle\Plugin\Cache\CachePlugin;
@@ -14,6 +16,7 @@ use Doctrine\Common\Cache\ArrayCache;
 /**
  * @group server
  * @covers Guzzle\Plugin\Cache\CachePlugin
+ * @covers Guzzle\Plugin\Cache\DefaultRevalidation
  */
 class CachePluginTest extends \Guzzle\Tests\GuzzleTestCase
 {
@@ -31,10 +34,6 @@ class CachePluginTest extends \Guzzle\Tests\GuzzleTestCase
         ));
         $this->assertInstanceOf('Guzzle\Plugin\Cache\CacheStorageInterface', $this->readAttribute($plugin, 'storage'));
         $this->assertInstanceOf(
-            'Guzzle\Plugin\Cache\CacheKeyProviderInterface',
-            $this->readAttribute($plugin, 'keyProvider')
-        );
-        $this->assertInstanceOf(
             'Guzzle\Plugin\Cache\CanCacheStrategyInterface',
             $this->readAttribute($plugin, 'canCache')
         );
@@ -47,15 +46,7 @@ class CachePluginTest extends \Guzzle\Tests\GuzzleTestCase
     public function testAddsCallbackCollaborators()
     {
         $this->assertNotEmpty(CachePlugin::getSubscribedEvents());
-        $plugin = new CachePlugin(array(
-            'storage' => $this->getMockBuilder('Guzzle\Plugin\Cache\CacheStorageInterface')->getMockForAbstractClass(),
-            'can_cache'    => function () {},
-            'key_provider' => function () {}
-        ));
-        $this->assertInstanceOf(
-            'Guzzle\Plugin\Cache\CallbackCacheKeyProvider',
-            $this->readAttribute($plugin, 'keyProvider')
-        );
+        $plugin = new CachePlugin(array('can_cache' => function () {}));
         $this->assertInstanceOf(
             'Guzzle\Plugin\Cache\CallbackCanCacheStrategy',
             $this->readAttribute($plugin, 'canCache')
@@ -80,14 +71,11 @@ class CachePluginTest extends \Guzzle\Tests\GuzzleTestCase
     {
         $can = $this->getMockBuilder('Guzzle\Plugin\Cache\CanCacheStrategyInterface')->getMockForAbstractClass();
         $revalidate = $this->getMockBuilder('Guzzle\Plugin\Cache\RevalidationInterface')->getMockForAbstractClass();
-        $key = $this->getMockBuilder('Guzzle\Plugin\Cache\CacheKeyProviderInterface')->getMockForAbstractClass();
         $plugin = new CachePlugin(array(
             'storage' => $this->getMockBuilder('Guzzle\Plugin\Cache\CacheStorageInterface')->getMockForAbstractClass(),
-            'can_cache'    => $can,
-            'revalidation' => $revalidate,
-            'key_provider' => $key
+            'can_cache' => $can,
+            'revalidation' => $revalidate
         ));
-        $this->assertSame($key, $this->readAttribute($plugin, 'keyProvider'));
         $this->assertSame($can, $this->readAttribute($plugin, 'canCache'));
         $this->assertSame($revalidate, $this->readAttribute($plugin, 'revalidation'));
     }
@@ -95,10 +83,6 @@ class CachePluginTest extends \Guzzle\Tests\GuzzleTestCase
     public function satisfyProvider()
     {
         $req1 = new Request('GET', 'http://foo.com', array('Cache-Control' => 'no-cache'));
-        $req2 = clone $req1;
-        $req2->getParams()->set('cache.revalidate', 'skip');
-        $req3 = clone $req1;
-        $req3->getParams()->set('cache.revalidate', 'never');
 
         return array(
             // The response is too old to satisfy the request
@@ -111,10 +95,11 @@ class CachePluginTest extends \Guzzle\Tests\GuzzleTestCase
             array(new Request('GET', 'http://foo.com', array('Cache-Control' => 'max-stale=5')), new Response(200, array('Cache-Control' => 'max-age=90', 'Age' => 100)), false, false),
             // Performs cache revalidation
             array($req1, new Response(200), true, true),
-            // Does not perform revalidation
-            array($req2, new Response(200), true, false),
-            // Does not perform revalidation and fails
-            array($req3, new Response(200), false, false),
+            // Performs revalidation due to ETag on the response and no cache-control on the request
+            array(new Request('GET', 'http://foo.com'), new Response(200, array(
+                'ETag' => 'ABC',
+                'Expires' => date('c', strtotime('+1 year'))
+            )), true, true),
         );
     }
 
@@ -124,8 +109,10 @@ class CachePluginTest extends \Guzzle\Tests\GuzzleTestCase
     public function testChecksIfResponseCanSatisfyRequest($request, $response, $can, $revalidates)
     {
         $didRevalidate = false;
-        $revalidate = $this->getMockBuilder('Guzzle\Plugin\Cache\RevalidationInterface')
+        $storage = $this->getMockBuilder('Guzzle\Plugin\Cache\CacheStorageInterface')->getMockForAbstractClass();
+        $revalidate = $this->getMockBuilder('Guzzle\Plugin\Cache\DefaultRevalidation')
             ->setMethods(array('revalidate'))
+            ->setConstructorArgs(array($storage))
             ->getMockForAbstractClass();
 
         $revalidate->expects($this->any())
@@ -136,12 +123,46 @@ class CachePluginTest extends \Guzzle\Tests\GuzzleTestCase
             }));
 
         $plugin = new CachePlugin(array(
-            'storage' => $this->getMockBuilder('Guzzle\Plugin\Cache\CacheStorageInterface')->getMockForAbstractClass(),
+            'storage' => $storage,
             'revalidation' => $revalidate
         ));
 
         $this->assertEquals($can, $plugin->canResponseSatisfyRequest($request, $response));
         $this->assertEquals($didRevalidate, $revalidates);
+    }
+
+    public function satisfyFailedProvider()
+    {
+        return array(
+            // Neither has stale-if-error
+            array(new Request('GET', 'http://foo.com', array()), new Response(200, array('Age' => 100)), false),
+            // Request has stale-if-error
+            array(new Request('GET', 'http://foo.com', array('Cache-Control' => 'stale-if-error')), new Response(200, array('Age' => 100, 'Cache-Control' => 'max-age=50')), true),
+            // Request has valid stale-if-error
+            array(new Request('GET', 'http://foo.com', array('Cache-Control' => 'stale-if-error=50')), new Response(200, array('Age' => 100, 'Cache-Control' => 'max-age=50')), true),
+            // Request has expired stale-if-error
+            array(new Request('GET', 'http://foo.com', array('Cache-Control' => 'stale-if-error=20')), new Response(200, array('Age' => 100, 'Cache-Control' => 'max-age=50')), false),
+            // Response has permanent stale-if-error
+            array(new Request('GET', 'http://foo.com', array()), new Response(200, array('Age' => 100, 'Cache-Control' => 'max-age=50, stale-if-error', )), true),
+            // Response has valid stale-if-error
+            array(new Request('GET', 'http://foo.com', array()), new Response(200, array('Age' => 100, 'Cache-Control' => 'max-age=50, stale-if-error=50')), true),
+            // Response has expired stale-if-error
+            array(new Request('GET', 'http://foo.com', array()), new Response(200, array('Age' => 100, 'Cache-Control' => 'max-age=50, stale-if-error=20')), false),
+            // Request has valid stale-if-error but response does not
+            array(new Request('GET', 'http://foo.com', array('Cache-Control' => 'stale-if-error=50')), new Response(200, array('Age' => 100, 'Cache-Control' => 'max-age=50, stale-if-error=20')), false),
+            // Response has valid stale-if-error but request does not
+            array(new Request('GET', 'http://foo.com', array('Cache-Control' => 'stale-if-error=20')), new Response(200, array('Age' => 100, 'Cache-Control' => 'max-age=50, stale-if-error=50')), false),
+        );
+    }
+
+    /**
+     * @dataProvider satisfyFailedProvider
+     */
+    public function testChecksIfResponseCanSatisfyFailedRequest($request, $response, $can)
+    {
+        $plugin = new CachePlugin();
+
+        $this->assertEquals($can, $plugin->canResponseSatisfyFailedRequest($request, $response));
     }
 
     public function testDoesNothingWhenRequestIsNotCacheable()
@@ -161,28 +182,224 @@ class CachePluginTest extends \Guzzle\Tests\GuzzleTestCase
         )));
     }
 
-    public function testInjectsSatisfiableResponses()
+    public function satisfiableProvider()
+    {
+        $date = new \DateTime('-10 seconds');
+
+        return array(
+            // Fresh response
+            array(new Response(200, array(), 'foo')),
+            // Stale response
+            array(new Response(200, array('Date' => $date->format('c'), 'Cache-Control' => 'max-age=5'), 'foo'))
+        );
+    }
+
+    /**
+     * @dataProvider satisfiableProvider
+     */
+    public function testInjectsSatisfiableResponses($response)
     {
         $storage = $this->getMockBuilder('Guzzle\Plugin\Cache\CacheStorageInterface')
             ->setMethods(array('fetch'))
             ->getMockForAbstractClass();
-        $storage->expects($this->once())->method('fetch')->will($this->returnValue(array(200, array(), 'foo')));
+
+        $storage->expects($this->once())->method('fetch')->will($this->returnValue($response));
         $plugin = new CachePlugin(array('storage' => $storage));
-        $request = new Request('GET', 'http://foo.com');
+        $request = new Request('GET', 'http://foo.com', array('Cache-Control' => 'max-stale'));
+        $plugin->onRequestBeforeSend(new Event(array('request' => $request)));
+        $plugin->onRequestSent(new Event(array('request' => $request, 'response' => $request->getResponse())));
+        $this->assertEquals($response->getStatusCode(), $request->getResponse()->getStatusCode());
+        $this->assertEquals((string) $response->getBody(), (string) $request->getResponse()->getBody());
+        $this->assertTrue($request->getResponse()->hasHeader('Age'));
+        if ($request->getResponse()->isFresh() === false) {
+            $this->assertContains('110', (string) $request->getResponse()->getHeader('Warning'));
+        }
+        $this->assertSame(
+            sprintf('%s GuzzleCache/%s', $request->getProtocolVersion(), Version::VERSION),
+            (string) $request->getHeader('Via')
+        );
+        $this->assertSame(
+            sprintf('%s GuzzleCache/%s',$request->getProtocolVersion(), Version::VERSION),
+            (string) $request->getResponse()->getHeader('Via')
+        );
+        $this->assertTrue($request->getParams()->get('cache.lookup'));
+        $this->assertTrue($request->getParams()->get('cache.hit'));
+        $this->assertTrue($request->getResponse()->hasHeader('X-Cache-Lookup'));
+        $this->assertTrue($request->getResponse()->hasHeader('X-Cache'));
+        $this->assertEquals('HIT from GuzzleCache', (string) $request->getResponse()->getHeader('X-Cache'));
+        $this->assertEquals('HIT from GuzzleCache', (string) $request->getResponse()->getHeader('X-Cache-Lookup'));
+    }
+
+    public function satisfiableOnErrorProvider()
+    {
+        $date = new \DateTime('-10 seconds');
+        return array(
+            array(
+                new Response(200, array(
+                    'Date' => $date->format('c'),
+                    'Cache-Control' => 'max-age=5, stale-if-error'
+                ), 'foo'),
+            )
+        );
+    }
+
+    /**
+     * @dataProvider satisfiableOnErrorProvider
+     */
+    public function testInjectsSatisfiableResponsesOnError($cacheResponse)
+    {
+        $storage = $this->getMockBuilder('Guzzle\Plugin\Cache\CacheStorageInterface')
+            ->setMethods(array('fetch'))
+            ->getMockForAbstractClass();
+        $storage->expects($this->exactly(2))->method('fetch')->will($this->returnValue($cacheResponse));
+        $plugin = new CachePlugin(array('storage' => $storage));
+        $request = new Request('GET', 'http://foo.com', array('Cache-Control' => 'max-stale'));
+        $plugin->onRequestBeforeSend(new Event(array('request' => $request)));
+        $plugin->onRequestError(
+            $event = new Event(array(
+                'request' => $request,
+                'response' => $request->getResponse(),
+            ))
+        );
+        $response = $event['response'];
+        $this->assertEquals($cacheResponse->getStatusCode(), $response->getStatusCode());
+        $this->assertEquals((string) $cacheResponse->getBody(), (string) $response->getBody());
+        $this->assertTrue($response->hasHeader('Age'));
+        if ($response->isFresh() === false) {
+            $this->assertContains('110', (string) $response->getHeader('Warning'));
+        }
+        $this->assertSame(sprintf('%s GuzzleCache/%s', $request->getProtocolVersion(), Version::VERSION), (string) $request->getHeader('Via'));
+        $this->assertSame(sprintf('%s GuzzleCache/%s', $request->getProtocolVersion(), Version::VERSION), (string) $response->getHeader('Via'));
+        $this->assertTrue($request->getParams()->get('cache.lookup'));
+        $this->assertSame('error', $request->getParams()->get('cache.hit'));
+        $this->assertTrue($response->hasHeader('X-Cache-Lookup'));
+        $this->assertTrue($response->hasHeader('X-Cache'));
+        $this->assertEquals('HIT from GuzzleCache', (string) $response->getHeader('X-Cache-Lookup'));
+        $this->assertEquals('HIT_ERROR from GuzzleCache', (string) $response->getHeader('X-Cache'));
+    }
+
+    /**
+     * @dataProvider satisfiableOnErrorProvider
+     */
+    public function testInjectsSatisfiableResponsesOnException($cacheResponse)
+    {
+        $storage = $this->getMockBuilder('Guzzle\Plugin\Cache\CacheStorageInterface')
+            ->setMethods(array('fetch'))
+            ->getMockForAbstractClass();
+        $storage->expects($this->exactly(2))->method('fetch')->will($this->returnValue($cacheResponse));
+        $plugin = new CachePlugin(array('storage' => $storage));
+        $request = new Request('GET', 'http://foo.com', array('Cache-Control' => 'max-stale'));
         $plugin->onRequestBeforeSend(new Event(array(
             'request' => $request
         )));
-        $this->assertEquals(200, $request->getResponse()->getStatusCode());
-        $this->assertEquals('foo', $request->getResponse()->getBody(true));
-        $this->assertContains('key=', (string) $request->getResponse()->getHeader('X-Guzzle-Cache'));
-        $this->assertTrue($request->getResponse()->hasHeader('Age'));
+        $plugin->onRequestException(
+            new Event(array(
+                'request' => $request,
+                'response' => $request->getResponse(),
+                'exception' => $this->getMock('Guzzle\Http\Exception\CurlException'),
+            ))
+        );
+        $plugin->onRequestSent(
+            new Event(array(
+                'request' => $request,
+                'response' => $response = $request->getResponse(),
+            ))
+        );
+        $this->assertEquals($cacheResponse->getStatusCode(), $response->getStatusCode());
+        $this->assertEquals((string) $cacheResponse->getBody(), (string) $response->getBody());
+        $this->assertTrue($response->hasHeader('Age'));
+        if ($response->isFresh() === false) {
+            $this->assertContains('110', (string) $response->getHeader('Warning'));
+        }
+        $this->assertSame(sprintf('%s GuzzleCache/%s', $request->getProtocolVersion(), Version::VERSION), (string) $request->getHeader('Via'));
+        $this->assertSame(sprintf('%s GuzzleCache/%s', $request->getProtocolVersion(), Version::VERSION), (string) $response->getHeader('Via'));
+        $this->assertTrue($request->getParams()->get('cache.lookup'));
+        $this->assertSame('error', $request->getParams()->get('cache.hit'));
+        $this->assertTrue($response->hasHeader('X-Cache-Lookup'));
+        $this->assertTrue($response->hasHeader('X-Cache'));
+        $this->assertEquals('HIT from GuzzleCache', (string) $response->getHeader('X-Cache-Lookup'));
+        $this->assertEquals('HIT_ERROR from GuzzleCache', (string) $response->getHeader('X-Cache'));
+    }
+
+    public function unsatisfiableOnErrorProvider()
+    {
+        $date = new \DateTime('-10 seconds');
+
+        return array(
+            // no-store on request
+            array(
+                false,
+                array('Cache-Control' => 'no-store'),
+                new Response(200, array('Date' => $date->format('D, d M Y H:i:s T'), 'Cache-Control' => 'max-age=5, stale-if-error'), 'foo'),
+            ),
+            // request expired
+            array(
+                true,
+                array('Cache-Control' => 'stale-if-error=4'),
+                new Response(200, array('Date' => $date->format('D, d M Y H:i:s T'), 'Cache-Control' => 'max-age=5, stale-if-error'), 'foo'),
+            ),
+            // response expired
+            array(
+                true,
+                array('Cache-Control' => 'stale-if-error'),
+                new Response(200, array('Date' => $date->format('D, d M Y H:i:s T'), 'Cache-Control' => 'max-age=5, stale-if-error=4'), 'foo'),
+            ),
+        );
+    }
+
+    /**
+     * @dataProvider unsatisfiableOnErrorProvider
+     */
+    public function testDoesNotInjectUnsatisfiableResponsesOnError($requestCanCache, $requestHeaders, $cacheResponse)
+    {
+        $storage = $this->getMockBuilder('Guzzle\Plugin\Cache\CacheStorageInterface')
+            ->setMethods(array('fetch'))
+            ->getMockForAbstractClass();
+        $storage->expects($this->exactly($requestCanCache ? 2 : 0))->method('fetch')->will($this->returnValue($cacheResponse));
+        $plugin = new CachePlugin(array('storage' => $storage));
+        $request = new Request('GET', 'http://foo.com', $requestHeaders);
+        $plugin->onRequestBeforeSend(new Event(array(
+            'request' => $request
+        )));
+        $plugin->onRequestError(
+            $event = new Event(array(
+                'request' => $request,
+                'response' => $response = $request->getResponse(),
+            ))
+        );
+
+        $this->assertSame($response, $event['response']);
+    }
+
+    /**
+     * @dataProvider unsatisfiableOnErrorProvider
+     */
+    public function testDoesNotInjectUnsatisfiableResponsesOnException($requestCanCache, $requestHeaders, $responseParts)
+    {
+        $storage = $this->getMockBuilder('Guzzle\Plugin\Cache\CacheStorageInterface')
+            ->setMethods(array('fetch'))
+            ->getMockForAbstractClass();
+        $storage->expects($this->exactly($requestCanCache ? 2 : 0))->method('fetch')->will($this->returnValue($responseParts));
+        $plugin = new CachePlugin(array('storage' => $storage));
+        $request = new Request('GET', 'http://foo.com', $requestHeaders);
+        $plugin->onRequestBeforeSend(new Event(array(
+            'request' => $request
+        )));
+        $plugin->onRequestException(
+            $event = new Event(array(
+                'request' => $request,
+                'response' => $response = $request->getResponse(),
+                'exception' => $this->getMock('Guzzle\Http\Exception\CurlException'),
+            ))
+        );
+
+        $this->assertSame($response, $request->getResponse());
     }
 
     public function testCachesResponsesWhenCacheable()
     {
         $cache = new ArrayCache();
-        $adapter = new DoctrineCacheAdapter($cache);
-        $plugin = new CachePlugin(array('adapter' => $adapter));
+        $plugin = new CachePlugin($cache);
 
         $request = new Request('GET', 'http://foo.com');
         $response = new Response(200, array(), 'Foo');
@@ -193,12 +410,32 @@ class CachePluginTest extends \Guzzle\Tests\GuzzleTestCase
             'request'  => $request,
             'response' => $response
         )));
-
         $data = $this->readAttribute($cache, 'data');
         $this->assertNotEmpty($data);
-        $data = end($data);
-        $this->assertEquals(200, $data[0]);
-        $this->assertInternalType('array', $data[1]);
-        $this->assertEquals('Foo', $data[2]);
+    }
+
+    public function testPurgesRequests()
+    {
+        $storage = $this->getMockBuilder('Guzzle\Plugin\Cache\CacheStorageInterface')
+            ->setMethods(array('purge'))
+            ->getMockForAbstractClass();
+        $storage->expects($this->atLeastOnce())->method('purge');
+        $plugin = new CachePlugin(array('storage' => $storage));
+        $request = new Request('GET', 'http://foo.com', array('X-Foo' => 'Bar'));
+        $plugin->purge($request);
+    }
+
+    public function testAutoPurgesRequests()
+    {
+        $storage = $this->getMockBuilder('Guzzle\Plugin\Cache\CacheStorageInterface')
+            ->setMethods(array('purge'))
+            ->getMockForAbstractClass();
+        $storage->expects($this->atLeastOnce())->method('purge');
+        $plugin = new CachePlugin(array('storage' => $storage, 'auto_purge' => true));
+        $client = new Client();
+        $request = $client->put('http://foo.com', array('X-Foo' => 'Bar'));
+        $request->addSubscriber($plugin);
+        $request->setResponse(new Response(200), true);
+        $request->send();
     }
 }

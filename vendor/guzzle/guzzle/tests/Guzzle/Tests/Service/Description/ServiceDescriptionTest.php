@@ -158,12 +158,27 @@ class ServiceDescriptionTest extends \Guzzle\Tests\GuzzleTestCase
             'keyParam'    => 'bar'
         );
         $d = new ServiceDescription($data);
+        $d->setData('hello', 'baz');
         $this->assertEquals('foo', $d->getData('auth'));
+        $this->assertEquals('baz', $d->getData('hello'));
         $this->assertEquals('bar', $d->getData('keyParam'));
         // responseClass and responseType are added by default
         $data['operations']['foo']['responseClass'] = 'array';
         $data['operations']['foo']['responseType'] = 'primitive';
-        $this->assertEquals($data, json_decode($d->serialize(), true));
+        $this->assertEquals($data + array('hello' => 'baz'), json_decode($d->serialize(), true));
+    }
+
+    public function testHasToArray()
+    {
+        $data = array(
+            'operations'  => array(),
+            'name'        => 'Name',
+            'description' => 'Test'
+        );
+        $d = new ServiceDescription($data);
+        $arr = $d->toArray();
+        $this->assertEquals('Name', $arr['name']);
+        $this->assertEquals('Test', $arr['description']);
     }
 
     public function testReturnsNullWhenRetrievingMissingOperation()
@@ -202,5 +217,24 @@ class ServiceDescriptionTest extends \Guzzle\Tests\GuzzleTestCase
     {
         $description = new ServiceDescription(array('basePath' => 'http://foo.com'));
         $this->assertEquals('http://foo.com', $description->getBaseUrl());
+    }
+
+    public function testModelsHaveNames()
+    {
+        $desc = array(
+            'models' => array(
+                'date' => array('type' => 'string'),
+                'user'=> array(
+                    'type' => 'object',
+                    'properties' => array(
+                        'dob' => array('$ref' => 'date')
+                    )
+                )
+            )
+        );
+
+        $s = ServiceDescription::factory($desc);
+        $this->assertEquals('date', $s->getModel('date')->getName());
+        $this->assertEquals('dob', $s->getModel('user')->getProperty('dob')->getName());
     }
 }

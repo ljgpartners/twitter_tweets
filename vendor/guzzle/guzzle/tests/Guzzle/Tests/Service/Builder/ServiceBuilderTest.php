@@ -37,22 +37,6 @@ class ServiceBuilderTest extends \Guzzle\Tests\GuzzleTestCase
         ),
         'missing_params' => array(
             'extends' => 'billy.mock'
-        ),
-        'cache.adapter' => array(
-            'class'  => 'Guzzle\Cache\CacheAdapterFactory',
-            'params' => array(
-                'cache.adapter'  => 'Guzzle\Cache\DoctrineCacheAdapter',
-                'cache.provider' => 'Doctrine\Common\Cache\ArrayCache'
-            )
-        ),
-        'service_uses_cache' => array(
-            'class'  => 'Guzzle\Tests\Service\Mock\MockClient',
-            'params' => array(
-                'cache'     => '{cache.adapter}',
-                'username'  => 'foo',
-                'password'  => 'bar',
-                'subdomain' => 'baz'
-            )
         )
     );
 
@@ -257,36 +241,12 @@ class ServiceBuilderTest extends \Guzzle\Tests\GuzzleTestCase
         }
     }
 
-    public function testCacheServiceCanBeCreatedAndInjectedIntoOtherServices()
-    {
-        $builder = ServiceBuilder::factory($this->arrayData);
-        $usesCache = $builder['service_uses_cache'];
-        $this->assertInstanceOf('Guzzle\Cache\DoctrineCacheAdapter', $usesCache->getConfig('cache'));
-    }
-
-    public function testServicesCanBeAddedToBuilderAfterInstantiationAndInjectedIntoServices()
-    {
-        // Grab the cache adapter and remove it from the config
-        $cache = $this->arrayData['cache.adapter'];
-        $data = $this->arrayData;
-        unset($data['cache.adapter']);
-
-        // Create the builder and add the cache adapter
-        $builder = ServiceBuilder::factory($data);
-        $builder['cache.adapter'] = $cache;
-
-        $this->assertInstanceOf(
-            'Guzzle\Cache\DoctrineCacheAdapter',
-            $builder['service_uses_cache']->getConfig('cache')
-        );
-    }
-
     public function testAddsGlobalPlugins()
     {
         $b = new ServiceBuilder($this->arrayData);
         $b->addGlobalPlugin(new HistoryPlugin());
         $s = $b->get('michael.mock');
-        $this->assertTrue($s->getEventDispatcher()->hasListeners('request.complete'));
+        $this->assertTrue($s->getEventDispatcher()->hasListeners('request.sent'));
     }
 
     public function testCanGetData()
@@ -300,5 +260,58 @@ class ServiceBuilderTest extends \Guzzle\Tests\GuzzleTestCase
     {
         $b = new ServiceBuilder($this->arrayData);
         $this->assertSame($b->get('billy.mock'), $b->get('Hello!'));
+    }
+
+    public function testCanOverwriteParametersForThrowawayClients()
+    {
+        $b = new ServiceBuilder($this->arrayData);
+
+        $c1 = $b->get('michael.mock');
+        $this->assertEquals('michael', $c1->getConfig('username'));
+
+        $c2 = $b->get('michael.mock', array('username' => 'jeremy'));
+        $this->assertEquals('jeremy', $c2->getConfig('username'));
+    }
+
+    public function testGettingAThrowawayClientWithParametersDoesNotAffectGettingOtherClients()
+    {
+        $b = new ServiceBuilder($this->arrayData);
+
+        $c1 = $b->get('michael.mock', array('username' => 'jeremy'));
+        $this->assertEquals('jeremy', $c1->getConfig('username'));
+
+        $c2 = $b->get('michael.mock');
+        $this->assertEquals('michael', $c2->getConfig('username'));
+    }
+
+    public function testCanUseArbitraryData()
+    {
+        $b = new ServiceBuilder();
+        $b['a'] = 'foo';
+        $this->assertTrue(isset($b['a']));
+        $this->assertEquals('foo', $b['a']);
+        unset($b['a']);
+        $this->assertFalse(isset($b['a']));
+    }
+
+    public function testCanRegisterServiceData()
+    {
+        $b = new ServiceBuilder();
+        $b['a'] = array(
+            'class' => 'Guzzle\Tests\Service\Mock\MockClient',
+            'params' => array(
+                'username' => 'billy',
+                'password' => 'passw0rd',
+                'subdomain' => 'billy',
+            )
+        );
+        $this->assertTrue(isset($b['a']));
+        $this->assertInstanceOf('Guzzle\Tests\Service\Mock\MockClient', $b['a']);
+        $client = $b['a'];
+        unset($b['a']);
+        $this->assertFalse(isset($b['a']));
+        // Ensure that instantiated clients can be registered
+        $b['mock'] = $client;
+        $this->assertSame($client, $b['mock']);
     }
 }
