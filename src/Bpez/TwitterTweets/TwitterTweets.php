@@ -3,6 +3,7 @@
 namespace Bpez\TwitterTweets;
 
 use Guzzle\Http\Client;
+use Guzzle\Plugin\Oauth\OauthPlugin;
 use DateTime;
 
 // To get access tokens go here:
@@ -41,7 +42,7 @@ class TwitterTweets {
       ));
 
       // Sign all requests with the OauthPlugin
-      $this->client->addSubscriber(new Guzzle\Plugin\Oauth\OauthPlugin(array(
+      $this->client->addSubscriber(new OauthPlugin(array(
           'consumer_key'  => $auth['consumer_key'],
           'consumer_secret' => $auth['consumer_secret'],
           'token'       => $auth['token'],
