@@ -87,7 +87,7 @@ class TwitterTweets {
         // Check if there is a url in the text
         if(preg_match($reg_exUrl, $text, $url)) {
           // make the urls hyper links
-          $t->text = preg_replace($reg_exUrl, "<a target='_BLANK' href='{$url[0]}''>{$url[0]}</a> ", $text);
+          $t->text = preg_replace($reg_exUrl, "<a target='_BLANK' href='{$url[0]}'>{$url[0]}</a> ", $text);
         } else {
           // if no urls in the text just return the text
           $t->text = $text;
