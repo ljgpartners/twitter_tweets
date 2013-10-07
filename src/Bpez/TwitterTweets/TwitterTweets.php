@@ -71,8 +71,30 @@ class TwitterTweets {
       if(is_object($tweets)){
         return false;
       }else{
-        return $tweets;
+        return self::filter_links($tweets);
       }
+    }
+
+    private static function filter_links($tweets)
+    {
+      // The Regular Expression filter
+      $reg_exUrl = "/(http|https|ftp|ftps)\:\/\/[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,3}(\/\S*)?/";
+
+      foreach($tweets as $t) {      
+        // The Text you want to filter for urls
+        $text = $t->text;
+
+        // Check if there is a url in the text
+        if(preg_match($reg_exUrl, $text, $url)) {
+          // make the urls hyper links
+          $t->text = preg_replace($reg_exUrl, "<a target='_BLANK' href='{$url[0]}''>{$url[0]}</a> ", $text);
+        } else {
+          // if no urls in the text just return the text
+          $t->text = $text;
+        }
+      } 
+
+      return $tweets;
     }
 
     // Save Cache to files
